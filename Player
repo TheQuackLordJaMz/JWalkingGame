@@ -1,0 +1,62 @@
+using UnityEngine;
+
+public class PlayerController : MonoBehaviour
+{
+    public float moveSpeed = 5f;
+    public Animator animator;
+    private bool isHit = false;
+    public bool isDead = false;
+    [SerializeField] private Rigidbody rb;
+
+    private void Start()
+    {
+        rb = GetComponent<Rigidbody>();
+    }
+    void Update()
+    {
+        if (isHit) return; // stop movement if hit
+       
+
+        float moveX = Input.GetAxis("Horizontal");
+        float moveZ = Input.GetAxis("Vertical");
+
+        Vector3 inputDir = new Vector3(moveX, 0f, moveZ).normalized;
+
+        // Move the player
+        transform.Translate(inputDir * moveSpeed * Time.deltaTime, Space.World);
+        
+
+
+        // Animate walking
+        bool isWalking = inputDir.magnitude > 0;
+        animator.SetBool("isWalking", isWalking);
+
+        // Rotate toward movement direction
+        if (isWalking)
+        {
+            Quaternion toRotation = Quaternion.LookRotation(inputDir, Vector3.up);
+            transform.rotation = Quaternion.Slerp(transform.rotation, toRotation, 10f * Time.deltaTime);
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Car"))
+        {
+            Debug.Log("Hit by car!");
+
+            isHit = true;
+            isDead = true;
+            // Play death animation
+            animator.SetTrigger("Die");
+
+            
+            rb.linearVelocity = Vector3.zero;
+
+            // Slight upward launch (optional)
+            rb.AddForce(Vector3.up * 10f, ForceMode.Impulse);
+            //rb.constraints = RigidbodyConstraints.FreezeAll;
+        }
+    }
+}
+
