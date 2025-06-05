@@ -1,0 +1,126 @@
+using UnityEngine;
+
+public class PlayerController : MonoBehaviour
+{
+    [Header("Movement Settings")]
+    public float moveSpeed = 5f;
+    public float sideSpeed = 3f;
+    public float jumpForce = 7f;
+
+    [Header("Gameplay Flags")]
+    public bool canMove = false;
+    public bool isHit = false;
+    public bool isDead = false;
+
+    [Header("References")]
+    public LayerMask groundLayer;
+    public Animator animator;
+    public GameObject ragdollRoot; // Assign the Hips or main ragdoll root bone here
+
+    private Rigidbody rb;
+    private bool isFacingForward = true;
+
+    private void Start()
+    {
+        rb = GetComponent<Rigidbody>();
+        DisableRagdoll(); // Ensure ragdoll is off at game start
+    }
+
+    private void Update()
+    {
+        // Don't process movement if not allowed or if player is hit
+        if (!canMove || isHit) return;
+
+        float moveX = Input.GetAxis("Horizontal");
+
+        // Build movement vector based on character orientation
+        Vector3 forwardMovement = transform.forward * moveSpeed;
+        Vector3 sideMovement = transform.right * moveX * sideSpeed;
+        Vector3 moveDir = forwardMovement + sideMovement;
+
+        transform.Translate(moveDir * Time.deltaTime, Space.World);
+
+        // Check if player is on the ground
+        bool grounded = IsGrounded();
+        animator.SetBool("isGrounded", grounded);
+
+        // Handle jumping
+        if (grounded && Input.GetKeyDown(KeyCode.Space))
+        {
+            rb.AddForce(Vector3.up * jumpForce, ForceMode.Impulse);
+            animator.SetTrigger("Jump");
+        }
+
+        // Set walking animation only when grounded and moving
+        bool isMoving = Mathf.Abs(moveX) > 0.1f || moveSpeed > 0f;
+        animator.SetBool("isWalking", grounded && isMoving);
+
+        // Slightly rotate toward movement direction
+        if (Mathf.Abs(moveX) > 0.1f)
+        {
+            Quaternion toRotation = Quaternion.LookRotation(moveDir.normalized, Vector3.up);
+            transform.rotation = Quaternion.Slerp(transform.rotation, toRotation, 10f * Time.deltaTime);
+        }
+    }
+
+    private void OnTriggerEnter(Collider other)
+    {
+        if (other.CompareTag("Car"))
+        {
+            Debug.Log("Hit by car!");
+
+            isHit = true;
+            isDead = true;
+
+            // Stop animation and player movement
+            animator.enabled = false;
+            rb.linearVelocity = Vector3.zero;
+            rb.isKinematic = true;
+            GetComponent<Collider>().enabled = false;
+
+            EnableRagdoll(); // Enable ragdoll physics
+        }
+        else if (other.CompareTag("ScoreZone"))
+        {
+            // FindObjectOfType<GameManager>()?.AddScore(); // Optional scoring
+            TurnAround(); // Flip direction on reaching goal
+        }
+    }
+
+    public void StartGame()
+    {
+        canMove = true;
+    }
+
+    private void TurnAround()
+    {
+        transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y + 180f, 0f);
+        isFacingForward = !isFacingForward;
+    }
+
+    private bool IsGrounded()
+    {
+        return Physics.Raycast(transform.position, Vector3.down, 1.1f, groundLayer);
+    }
+
+    // Enables all ragdoll physics parts
+    private void EnableRagdoll()
+    {
+        foreach (Rigidbody limb in ragdollRoot.GetComponentsInChildren<Rigidbody>())
+            limb.isKinematic = false;
+
+        foreach (Collider col in ragdollRoot.GetComponentsInChildren<Collider>())
+            col.enabled = true;
+    }
+
+    // Disables ragdoll physics, used on start
+    private void DisableRagdoll()
+    {
+        foreach (Rigidbody limb in ragdollRoot.GetComponentsInChildren<Rigidbody>())
+            limb.isKinematic = true;
+
+        foreach (Collider col in ragdollRoot.GetComponentsInChildren<Collider>())
+            col.enabled = false;
+    }
+}
+
